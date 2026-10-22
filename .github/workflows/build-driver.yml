@@ -21,12 +21,6 @@ jobs:
           Start-Process -FilePath $wdkInstaller -ArgumentList "/quiet" -Wait
           Write-Host "WDK installed"
 
-      - name: Install FindWDK CMake module
-        shell: pwsh
-        run: |
-          git clone --depth 1 https://github.com/SergiusTheBest/FindWDK.git C:/FindWDK
-          echo "CMAKE_MODULE_PATH=C:/FindWDK/cmake" >> $env:GITHUB_ENV
-
       - name: Create self-signed test certificate
         shell: pwsh
         run: |
@@ -35,61 +29,44 @@ jobs:
             -CertStoreLocation "Cert:\CurrentUser\My" `
             -KeyUsage DigitalSignature `
             -Type CodeSigningCert
-          $thumbprint = $cert.Thumbprint
-          echo "CERT_THUMBPRINT=$thumbprint" >> $env:GITHUB_ENV
-          Write-Host "Certificate thumbprint: $thumbprint"
+          echo "CERT_THUMBPRINT=$($cert.Thumbprint)" >> $env:GITHUB_ENV
 
-      - name: Show WDK paths
+      - name: Build IDD driver (MSBuild)
         shell: pwsh
         run: |
-          $kits = "C:\Program Files (x86)\Windows Kits\10"
-          Get-ChildItem "$kits\Include" | Select-Object Name
-          Get-ChildItem "$kits\Lib"     | Select-Object Name
-
-      - name: Configure CMake (IDD driver)
-        shell: pwsh
-        run: |
-          cmake -S driver/idd -B driver/idd/build `
-            -G "Visual Studio 17 2022" -A x64 `
-            -DCMAKE_MODULE_PATH="C:/FindWDK/cmake"
-
-      - name: Build IDD driver
-        shell: pwsh
-        run: |
-          cmake --build driver/idd/build --config Release
+          $msbuild = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe
+          & $msbuild driver/idd/ScrDisplay.vcxproj `
+            /p:Configuration=Release /p:Platform=x64 /p:OutDir="$PWD\driver\idd\out\\"
+          Write-Host "IDD driver built"
 
       - name: Sign IDD driver
         shell: pwsh
         run: |
-          $signtool = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe"
-          if (-not (Test-Path $signtool)) {
-            $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits" -Recurse -Filter "signtool.exe" | Select-Object -First 1).FullName
-          }
+          $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits" `
+            -Recurse -Filter "signtool.exe" -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -match "x64" } |
+            Select-Object -First 1).FullName
           & $signtool sign /sha1 $env:CERT_THUMBPRINT /td sha256 /fd sha256 `
-            driver/idd/build/Release/ScrDisplay.dll
+            driver/idd/out/ScrDisplay.dll
           Write-Host "Driver signed"
 
-      - name: Configure CMake (service DLL)
+      - name: Build service DLL (CMake)
         shell: pwsh
         run: |
           cmake -S driver/service -B driver/service/build `
             -G "Visual Studio 17 2022" -A x64
-
-      - name: Build service DLL
-        shell: pwsh
-        run: |
           cmake --build driver/service/build --config Release
 
       - name: Collect artifacts
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path artifact | Out-Null
-          Copy-Item driver/idd/build/Release/ScrDisplay.dll   artifact/
-          Copy-Item driver/idd/build/Release/ScrDisplay.inf   artifact/ -ErrorAction SilentlyContinue
-          Copy-Item driver/idd/ScrDisplay.inf                 artifact/ -ErrorAction SilentlyContinue
+          Copy-Item driver/idd/out/ScrDisplay.dll        artifact/
+          Copy-Item driver/idd/ScrDisplay.inf            artifact/
           Copy-Item driver/service/build/Release/ScrDisplaySvc.dll artifact/
-          # Export test cert as .cer so installer can trust it
-          $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Thumbprint -eq $env:CERT_THUMBPRINT }
+          $cert = Get-ChildItem Cert:\CurrentUser\My |
+            Where-Object { $_.Thumbprint -eq $env:CERT_THUMBPRINT }
           Export-Certificate -Cert $cert -FilePath artifact/ScrDisplayTest.cer -Type CERT
           Get-ChildItem artifact/
 
