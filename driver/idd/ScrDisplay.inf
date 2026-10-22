@@ -1,0 +1,70 @@
+; ScrDisplay.inf — Indirect Display Driver installation
+; Appears in Device Manager as "Microsoft Display Adapter"
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = Display
+ClassGuid   = {4d36e968-e325-11ce-bfc1-08002be10318}
+Provider    = %ManufacturerName%
+DriverVer   = 10/23/2026,1.0.0.1
+CatalogFile = ScrDisplay.cat
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir   = 12
+UMDriverCopy     = 12,UMDF
+
+[SourceDisksNames]
+1 = %DiskName%
+
+[SourceDisksFiles]
+ScrDisplay.dll = 1
+
+; ── Manufacturer / Models ────────────────────────────────────────────────────
+[Manufacturer]
+%ManufacturerName% = Standard,NT$ARCH$.10.0...19041
+
+[Standard.NT$ARCH$.10.0...19041]
+%DeviceName% = ScrDisplay_Install, Root\ScrDisplay
+
+; ── Install sections ─────────────────────────────────────────────────────────
+[ScrDisplay_Install.NT]
+CopyFiles = UMDriverCopy
+
+[ScrDisplay_Install.NT.hw]
+AddReg = HardwareDeviceSettings
+
+[HardwareDeviceSettings]
+HKR,, "UpperFilters",  0x00010000
+
+[ScrDisplay_Install.NT.Services]
+AddService = WUDFRd, 0x000001fa, WUDFRD_ServiceInstall
+
+[WUDFRD_ServiceInstall]
+DisplayName   = %WudfRdDisplayName%
+ServiceType   = 1
+StartType     = 3
+ErrorControl  = 1
+ServiceBinary = %12%\WUDFRd.sys
+
+[ScrDisplay_Install.NT.Wdf]
+UmdfService              = ScrDisplay, ScrDisplay_Install
+UmdfServiceOrder         = ScrDisplay
+UmdfKernelModeClientPolicy = AllowKernelModeClients
+UmdfFileObjectPolicy     = AllowNullAndUnknownFileObjects
+UmdfFsContextUsePolicy   = CannotUseFsContexts
+
+[ScrDisplay_Install]
+UmdfLibraryVersion = $UMDFVERSION$
+ServiceBinary      = %12%\UMDF\ScrDisplay.dll
+UmdfExtensions     = IddCx
+
+[UMDriverCopy]
+ScrDisplay.dll
+
+; ── Strings ──────────────────────────────────────────────────────────────────
+[Strings]
+ManufacturerName  = "Microsoft Corporation"
+DeviceName        = "Microsoft Display Adapter"
+DiskName          = "Microsoft Display Adapter Installation Disk"
+WudfRdDisplayName = "Windows Driver Foundation - User-mode Driver Framework Reflector"
