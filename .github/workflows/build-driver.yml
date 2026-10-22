@@ -24,10 +24,8 @@ jobs:
       - name: Install FindWDK CMake module
         shell: pwsh
         run: |
-          $dest = "C:/cmake-wdk"
-          New-Item -ItemType Directory -Force -Path $dest | Out-Null
-          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/SergiusTheBest/FindWDK/master/cmake/FindWDK.cmake" -OutFile "$dest/FindWDK.cmake"
-          echo "CMAKE_MODULE_PATH=$dest" >> $env:GITHUB_ENV
+          git clone --depth 1 https://github.com/SergiusTheBest/FindWDK.git C:/FindWDK
+          echo "CMAKE_MODULE_PATH=C:/FindWDK/cmake" >> $env:GITHUB_ENV
 
       - name: Create self-signed test certificate
         shell: pwsh
