@@ -39,6 +39,13 @@ jobs:
           echo "CERT_THUMBPRINT=$thumbprint" >> $env:GITHUB_ENV
           Write-Host "Certificate thumbprint: $thumbprint"
 
+      - name: Show WDK paths
+        shell: pwsh
+        run: |
+          $kits = "C:\Program Files (x86)\Windows Kits\10"
+          Get-ChildItem "$kits\Include" | Select-Object Name
+          Get-ChildItem "$kits\Lib"     | Select-Object Name
+
       - name: Configure CMake (IDD driver)
         shell: pwsh
         run: |
